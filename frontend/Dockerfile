@@ -2,31 +2,34 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy only package files for caching
 COPY package*.json ./
-
-# Install all dependencies
 RUN npm ci
 
-# Copy rest of project and build
 COPY . .
+
+# Ensure standalone output is enabled
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Stage 2: Production runtime
+# Stage 2: Production
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Install only production dependencies
-COPY package*.json ./
-RUN npm ci --only=production
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy built app
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/next.config.js ./next.config.js
+# Non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Only copy public if it exists
-# Make sure your project has an empty public folder if unused
-COPY --from=builder /app/public ./public
+# Copy only what standalone needs
+COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
+COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
+COPY --from=builder --chown=appuser:appgroup /app/public ./public
+
+USER appuser
 
 EXPOSE 3000
-CMD ["npm", "start"]
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+CMD ["node", "server.js"]

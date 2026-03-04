@@ -142,31 +142,31 @@ pipeline {
                     usernameVariable: 'GIT_USER',
                     passwordVariable: 'GIT_PASS'
                 )]) {
-                    sh """
-                        rm -rf umbrella-chart
-                        git clone https://$GIT_USER:$GIT_PASS@github.com/Vuthy-Tourn/taskmanager-helm.git umbrella-chart
-                        cd umbrella-chart
+                    dir('umbrella-chart') {  // safer way than cd
+                        sh '''
+                            rm -rf taskmanager-helm || true
+                            git clone https://$GIT_USER:$GIT_PASS@github.com/Vuthy-Tourn/taskmanager-helm.git taskmanager-helm
+                            cd taskmanager-helm
 
-                        git checkout $GITOPS_BRANCH
-                        git pull origin $GITOPS_BRANCH
+                            git checkout $GITOPS_BRANCH
+                            git pull origin $GITOPS_BRANCH
 
-                        # Update frontend image tag only
-                        if [ "$BUILD_FRONTEND" = "true" ]; then
-                        yq e -i '.frontend.image.tag = "'$IMAGE_TAG'"' values-prod.yaml
-                        fi
+                            if [ "$BUILD_FRONTEND" = "true" ]; then
+                                yq e -i '.frontend.image.tag = "'$IMAGE_TAG'"' ./umbrella-chart/values-prod.yaml
+                            fi
 
-                        # Update backend image tag only
-                        if [ "$BUILD_BACKEND" = "true" ]; then
-                        yq e -i '.backend.image.tag = "'$IMAGE_TAG'"' values-prod.yaml
-                        fi
+                            if [ "$BUILD_BACKEND" = "true" ]; then
+                                yq e -i '.backend.image.tag = "'$IMAGE_TAG'"' ./umbrella-chart/values-prod.yaml
+                            fi
 
-                        git config user.email "jenkins@ci.local"
-                        git config user.name "jenkins"
+                            git config user.email "jenkins@ci.local"
+                            git config user.name "jenkins"
 
-                        git add values-prod.yaml
-                        git commit -m "ci: update image tag to $IMAGE_TAG [skip ci]" || echo "No changes"
-                        git push origin $GITOPS_BRANCH
-                    """
+                            git add values-prod.yaml
+                            git commit -m "ci: update image tag to $IMAGE_TAG [skip ci]" || echo "No changes"
+                            git push origin $GITOPS_BRANCH
+                        '''
+                    }
                 }
             }
         }
