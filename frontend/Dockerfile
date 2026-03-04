@@ -7,8 +7,10 @@ RUN npm ci
 
 COPY . .
 
-# Ensure standalone output is enabled
+ARG NEXT_PUBLIC_API_URL=https://taskmanager-backend.vuthytourn.shop
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
+
 RUN npm run build
 
 # Stage 2: Production
@@ -18,10 +20,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy only what standalone needs
 COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
 COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
 COPY --from=builder --chown=appuser:appgroup /app/public ./public
