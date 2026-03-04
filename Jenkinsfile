@@ -142,30 +142,47 @@ pipeline {
                     usernameVariable: 'GIT_USER',
                     passwordVariable: 'GIT_PASS'
                 )]) {
-                    dir('umbrella-chart') {  // safer way than cd
-                        sh '''
-                            rm -rf taskmanager-helm || true
-                            git clone https://$GIT_USER:$GIT_PASS@github.com/Vuthy-Tourn/taskmanager-helm.git taskmanager-helm
-                            cd taskmanager-helm
+                    // Clone the repo into workspace folder
+                    sh '''
+                        rm -rf taskmanager-helm
+                        git clone https://$GIT_USER:$GIT_PASS@github.com/Vuthy-Tourn/taskmanager-helm.git taskmanager-helm
+                    '''
 
+                    // Work inside the repo
+                    dir('taskmanager-helm') {
+                        sh """
                             git checkout $GITOPS_BRANCH
                             git pull origin $GITOPS_BRANCH
 
+                            # Ensure the file exists
+                            if [ ! -f ./umbrella-chart/values-prod.yaml ]; then
+                                echo "Error: values-prod.yaml not found!"
+                                exit 1
+                            fi
+
+                            # Update frontend image tag
                             if [ "$BUILD_FRONTEND" = "true" ]; then
                                 yq e -i '.frontend.image.tag = "'$IMAGE_TAG'"' ./umbrella-chart/values-prod.yaml
                             fi
 
+                            # Update backend image tag
                             if [ "$BUILD_BACKEND" = "true" ]; then
                                 yq e -i '.backend.image.tag = "'$IMAGE_TAG'"' ./umbrella-chart/values-prod.yaml
                             fi
 
+                            # Git config
                             git config user.email "jenkins@ci.local"
                             git config user.name "jenkins"
 
-                            git add values-prod.yaml
-                            git commit -m "ci: update image tag to $IMAGE_TAG [skip ci]" || echo "No changes"
+                            # Stage the file using correct path
+                            git add ./umbrella-chart/values-prod.yaml
+
+                            # Commit if changes exist
+                            git commit -m "ci: update image tag to $IMAGE_TAG [skip ci]" || echo "No changes to commit"
+
+                            # Push changes
                             git push origin $GITOPS_BRANCH
-                        '''
+                        """
                     }
                 }
             }
